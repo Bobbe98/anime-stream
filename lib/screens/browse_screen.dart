@@ -29,6 +29,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
   String? _genre;
   SortMode _sort = SortMode.popular;
   bool _dubOnly = false;
+  bool _finishedOnly = false;
 
   @override
   void dispose() {
@@ -42,6 +43,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
       list = list.where((s) => s.genres.contains(_genre)).toList();
     }
     if (_dubOnly) list = list.where((s) => s.dubbed).toList();
+    if (_finishedOnly) list = list.where((s) => s.finished).toList();
     switch (_sort) {
       case SortMode.popular:
         break; // search() restituisce già per popolarità
@@ -112,15 +114,22 @@ class _BrowseScreenState extends State<BrowseScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-              child: Row(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Expanded(
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
                     child: Text(
                       '${results.length} titoli',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: AppColors.textMuted),
                     ),
+                  ),
+                  FilterChip(
+                    label: const Text('Concluse'),
+                    selected: _finishedOnly,
+                    onSelected: (v) => setState(() => _finishedOnly = v),
                   ),
                   FilterChip(
                     label: const Text('Solo DUB'),
@@ -138,6 +147,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(8),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.sort, size: 18),
                           const SizedBox(width: 4),

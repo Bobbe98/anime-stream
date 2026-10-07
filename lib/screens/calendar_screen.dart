@@ -7,34 +7,82 @@ import '../theme.dart';
 import '../widgets/cards.dart';
 import '../widgets/series_art.dart';
 
-class CalendarScreen extends StatelessWidget {
+/// Cosa mostrare per ogni giorno della settimana.
+enum CalendarFilter { airing, finished }
+
+class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
 
-  static const _days = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+  static const days = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+
+  @override
+  State<CalendarScreen> createState() => _CalendarScreenState();
+}
+
+class _CalendarScreenState extends State<CalendarScreen> {
+  CalendarFilter _filter = CalendarFilter.airing;
 
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now().weekday;
+    final finished = _filter == CalendarFilter.finished;
     return DefaultTabController(
       length: 7,
       initialIndex: today - 1,
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
-            'Calendario simulcast',
+            'Calendario',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
-          bottom: TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              for (var i = 0; i < 7; i++)
-                Tab(text: i + 1 == today ? '${_days[i]} • oggi' : _days[i]),
-            ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(104),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<CalendarFilter>(
+                      segments: const [
+                        ButtonSegment(
+                          value: CalendarFilter.airing,
+                          icon: Icon(Icons.live_tv),
+                          label: Text('In corso'),
+                        ),
+                        ButtonSegment(
+                          value: CalendarFilter.finished,
+                          icon: Icon(Icons.check_circle_outline),
+                          label: Text('Concluse'),
+                        ),
+                      ],
+                      selected: {_filter},
+                      onSelectionChanged: (v) =>
+                          setState(() => _filter = v.first),
+                    ),
+                  ),
+                ),
+                TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  tabs: [
+                    for (var i = 0; i < 7; i++)
+                      Tab(
+                        text: i + 1 == today
+                            ? '${CalendarScreen.days[i]} • oggi'
+                            : CalendarScreen.days[i],
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         body: TabBarView(
-          children: [for (var d = 1; d <= 7; d++) _DayList(weekday: d)],
+          children: [
+            for (var d = 1; d <= 7; d++)
+              _DayList(weekday: d, finished: finished),
+          ],
         ),
       ),
     );
@@ -42,23 +90,26 @@ class CalendarScreen extends StatelessWidget {
 }
 
 class _DayList extends StatelessWidget {
-  const _DayList({required this.weekday});
+  const _DayList({required this.weekday, required this.finished});
 
   final int weekday;
+  final bool finished;
 
   @override
   Widget build(BuildContext context) {
-    final items = Catalog.simulcastOn(weekday);
+    final items = Catalog.onWeekday(weekday, finished: finished);
     if (items.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.event_busy, size: 48, color: AppColors.textMuted),
-            SizedBox(height: 8),
+            const Icon(Icons.event_busy, size: 48, color: AppColors.textMuted),
+            const SizedBox(height: 8),
             Text(
-              'Nessuna uscita in questo giorno',
-              style: TextStyle(color: AppColors.textMuted),
+              finished
+                  ? 'Nessuna serie conclusa in questo giorno'
+                  : 'Nessuna uscita in questo giorno',
+              style: const TextStyle(color: AppColors.textMuted),
             ),
           ],
         ),
@@ -72,6 +123,7 @@ class _DayList extends StatelessWidget {
       itemBuilder: (_, i) {
         final s = items[i];
         final latest = s.episodes.last;
+        final watched = s.episodes.where(state.isWatched).length;
         return InkWell(
           onTap: () => openSeries(context, s),
           borderRadius: BorderRadius.circular(8),
@@ -81,10 +133,10 @@ class _DayList extends StatelessWidget {
               SizedBox(
                 width: 56,
                 child: Text(
-                  s.simulcastTime ?? '',
-                  style: const TextStyle(
+                  s.airTime ?? '',
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.accent2,
+                    color: finished ? AppColors.textMuted : AppColors.accent2,
                   ),
                 ),
               ),
@@ -112,18 +164,39 @@ class _DayList extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Ultimo: ${latest.code} - ${latest.title}',
+                      finished
+                          ? 'Completa: ${s.seasons.length} '
+                                '${s.seasons.length == 1 ? 'stagione' : 'stagioni'}, '
+                                '${s.episodes.length} episodi'
+                          : 'Ultimo: ${latest.code} - ${latest.title}',
                       style: const TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
+                    if (finished && watched > 0) ...[
+                      const SizedBox(height: 6),
+                      LinearProgressIndicator(
+                        value: watched / s.episodes.length,
+                        minHeight: 3,
+                        backgroundColor: Colors.white12,
+                        color: AppColors.accent2,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Visti $watched di ${s.episodes.length}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
+                      runSpacing: 4,
                       children: [
+                        if (finished)
+                          const Tag('CONCLUSA', color: AppColors.surfaceHigh),
                         if (s.dubbed) const Tag('DUB'),
-                        if (state.isLocked(latest))
+                        if (!finished && state.isLocked(latest))
                           const Tag(
                             'PREMIUM',
                             color: AppColors.premium,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,7 +7,9 @@ import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../data/catalog.dart';
+import '../data/subtitles.dart';
 import '../state/app_state.dart';
+import '../state/downloads.dart';
 import '../theme.dart';
 import '../widgets/cards.dart';
 
@@ -25,6 +28,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   static const _speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
 
   late final AppState _state;
+  late final DownloadManager _downloads;
+  SubtitleTrack? _subtitles;
+  bool _offline = false;
   late VideoPlayerController _controller;
   Timer? _saveTimer;
   Timer? _hideTimer;
@@ -40,6 +46,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void initState() {
     super.initState();
     _state = context.read<AppState>();
+    _downloads = context.read<DownloadManager>();
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
@@ -50,12 +57,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _init() async {
     setState(() => _error = null);
-    _controller = VideoPlayerController.networkUrl(
-      Uri.parse(_episode.videoUrl),
-    );
+    final local = _downloads.localPath(_episode.id);
+    _offline = local != null;
+    _controller = local != null
+        ? VideoPlayerController.file(File(local))
+        : VideoPlayerController.networkUrl(Uri.parse(_episode.videoUrl));
     try {
       await _controller.initialize();
       if (!mounted) return;
+      _loadSubtitles();
       final resume = _resumePosition();
       if (resume > Duration.zero) await _controller.seekTo(resume);
       _controller.addListener(_onTick);
@@ -132,6 +142,61 @@ class _PlayerScreenState extends State<PlayerScreen> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => PlayerScreen(episode: next)),
     );
+  }
+
+  void _loadSubtitles() {
+    final code = _state.subtitleLanguage;
+    _subtitles = code == Subtitles.off
+        ? null
+        : Subtitles.demo(_episode, code, _controller.value.duration);
+  }
+
+  Future<void> _pickSubtitles() async {
+    _hideTimer?.cancel();
+    final current = _state.subtitleLanguage;
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      builder: (sheet) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        builder: (_, scroll) => ListView(
+          controller: scroll,
+          children: [
+            const ListTile(
+              title: Text(
+                'Sottotitoli',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+              ),
+            ),
+            RadioGroup<String>(
+              groupValue: current,
+              onChanged: (v) => Navigator.pop(sheet, v),
+              child: Column(
+                children: [
+                  const RadioListTile(
+                    value: Subtitles.off,
+                    title: Text('Disattivati'),
+                  ),
+                  for (final l in Subtitles.languages)
+                    RadioListTile(
+                      value: l.code,
+                      title: Text(l.name),
+                      subtitle: Text(l.italianName),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && mounted) {
+      _state.subtitleLanguage = picked;
+      setState(_loadSubtitles);
+    }
+    _scheduleHide();
   }
 
   void _scheduleHide() {
@@ -236,7 +301,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       child: _Controls(
                         controller: _controller,
                         title: series.title,
-                        subtitle: '${_episode.code} - ${_episode.title}',
+                        subtitle:
+                            '${_offline ? 'Offline · ' : ''}${_episode.code} - ${_episode.title}',
+                        subtitlesOn: _subtitles != null,
+                        onSubtitles: _pickSubtitles,
                         speeds: _speeds,
                         hasNext: _state.episodeAfter(_episode) != null,
                         onBack: () => Navigator.pop(context),
@@ -271,6 +339,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       );
                     },
                   ),
+                  if (_subtitles != null)
+                    ValueListenableBuilder(
+                      valueListenable: _controller,
+                      builder: (_, v, _) {
+                        final text = _subtitles!.textAt(v.position);
+                        if (text == null) return const SizedBox.shrink();
+                        return Positioned(
+                          left: 32,
+                          right: 32,
+                          bottom: _showControls ? 96 : 28,
+                          child: Center(
+                            child: _SubtitleText(
+                              text: text,
+                              direction: _subtitles!.language.direction,
+                              scale: _state.subtitleScale,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   if (_ended && _state.autoplay && _next != null)
                     Positioned(
                       right: 24,
@@ -300,6 +388,8 @@ class _Controls extends StatelessWidget {
     required this.onSeekBy,
     required this.onNext,
     required this.onInteract,
+    required this.subtitlesOn,
+    required this.onSubtitles,
   });
 
   final VideoPlayerController controller;
@@ -312,6 +402,8 @@ class _Controls extends StatelessWidget {
   final void Function(Duration) onSeekBy;
   final VoidCallback onNext;
   final VoidCallback onInteract;
+  final bool subtitlesOn;
+  final VoidCallback onSubtitles;
 
   @override
   Widget build(BuildContext context) {
@@ -364,6 +456,16 @@ class _Controls extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Sottotitoli',
+                      onPressed: onSubtitles,
+                      icon: Icon(
+                        subtitlesOn
+                            ? Icons.closed_caption
+                            : Icons.closed_caption_off,
+                        color: Colors.white,
                       ),
                     ),
                     PopupMenuButton<double>(
@@ -494,6 +596,40 @@ class _ErrorView extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SubtitleText extends StatelessWidget {
+  const _SubtitleText({
+    required this.text,
+    required this.direction,
+    required this.scale,
+  });
+
+  final String text;
+  final TextDirection direction;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        textDirection: direction,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 18 * scale,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
+        ),
       ),
     );
   }

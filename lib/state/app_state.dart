@@ -25,11 +25,17 @@ class AppState extends ChangeNotifier {
   bool _autoplay = true;
   String _profileName = 'Otaku';
   int _avatar = 0;
+  String _subtitleLanguage = 'it';
+  double _subtitleScale = 1.0;
 
   bool get premium => _premium;
   bool get autoplay => _autoplay;
   String get profileName => _profileName;
   int get avatar => _avatar;
+
+  /// Codice lingua dei sottotitoli, oppure `Subtitles.off`.
+  String get subtitleLanguage => _subtitleLanguage;
+  double get subtitleScale => _subtitleScale;
 
   List<Series> get watchlist =>
       Catalog.all.where((s) => _watchlist.contains(s.id)).toList();
@@ -158,6 +164,16 @@ class AppState extends ChangeNotifier {
     _commit();
   }
 
+  set subtitleLanguage(String value) {
+    _subtitleLanguage = value;
+    _commit();
+  }
+
+  set subtitleScale(double value) {
+    _subtitleScale = value.clamp(0.75, 1.5);
+    _commit();
+  }
+
   set avatar(int value) {
     _avatar = value;
     _commit();
@@ -179,6 +195,8 @@ class AppState extends ChangeNotifier {
         'autoplay': _autoplay,
         'profileName': _profileName,
         'avatar': _avatar,
+        'subtitleLanguage': _subtitleLanguage,
+        'subtitleScale': _subtitleScale,
       }),
     );
   }
@@ -199,6 +217,8 @@ class AppState extends ChangeNotifier {
       _autoplay = data['autoplay'] as bool? ?? true;
       _profileName = data['profileName'] as String? ?? 'Otaku';
       _avatar = data['avatar'] as int? ?? 0;
+      _subtitleLanguage = data['subtitleLanguage'] as String? ?? 'it';
+      _subtitleScale = (data['subtitleScale'] as num?)?.toDouble() ?? 1.0;
     } catch (e) {
       debugPrint('AniWave: stato salvato non valido, lo ignoro ($e)');
     }

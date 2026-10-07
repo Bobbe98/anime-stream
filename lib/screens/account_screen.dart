@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/subtitles.dart';
 import '../state/app_state.dart';
+import '../state/downloads.dart';
 import '../theme.dart';
 import '../widgets/cards.dart';
 
@@ -121,6 +123,59 @@ class AccountScreen extends StatelessWidget {
             value: state.autoplay,
             onChanged: (v) => state.autoplay = v,
           ),
+          const _SectionTitle('Sottotitoli'),
+          ListTile(
+            leading: const Icon(Icons.closed_caption_outlined),
+            title: const Text('Lingua dei sottotitoli'),
+            subtitle: Text(
+              Subtitles.byCode(state.subtitleLanguage)?.name ?? 'Disattivati',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _pickSubtitleLanguage(context, state),
+          ),
+          ListTile(
+            leading: const Icon(Icons.format_size),
+            title: const Text('Dimensione del testo'),
+            subtitle: Slider(
+              value: state.subtitleScale,
+              min: 0.75,
+              max: 1.5,
+              divisions: 3,
+              label: switch (state.subtitleScale) {
+                <= 0.75 => 'Piccola',
+                <= 1.0 => 'Normale',
+                <= 1.25 => 'Grande',
+                _ => 'Molto grande',
+              },
+              onChanged: (v) => state.subtitleScale = v,
+            ),
+          ),
+          if (DownloadManager.supported) ...[
+            const _SectionTitle('Download'),
+            Builder(
+              builder: (context) {
+                final downloads = context.watch<DownloadManager>();
+                return ListTile(
+                  leading: const Icon(Icons.sd_storage_outlined),
+                  title: const Text('Elimina tutti i download'),
+                  subtitle: Text(
+                    '${downloads.completed.length} episodi · '
+                    '${formatBytes(downloads.totalBytes)} occupati',
+                  ),
+                  enabled:
+                      downloads.completed.isNotEmpty ||
+                      downloads.pending.isNotEmpty,
+                  onTap: () async {
+                    await downloads.deleteAll();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Download eliminati')),
+                    );
+                  },
+                );
+              },
+            ),
+          ],
           const _SectionTitle('Dati'),
           ListTile(
             leading: const Icon(Icons.history),
@@ -153,6 +208,45 @@ class AccountScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _pickSubtitleLanguage(
+    BuildContext context,
+    AppState state,
+  ) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      builder: (sheet) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        builder: (_, scroll) => ListView(
+          controller: scroll,
+          children: [
+            RadioGroup<String>(
+              groupValue: state.subtitleLanguage,
+              onChanged: (v) => Navigator.pop(sheet, v),
+              child: Column(
+                children: [
+                  const RadioListTile(
+                    value: Subtitles.off,
+                    title: Text('Disattivati'),
+                  ),
+                  for (final l in Subtitles.languages)
+                    RadioListTile(
+                      value: l.code,
+                      title: Text(l.name),
+                      subtitle: Text(l.italianName),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) state.subtitleLanguage = picked;
   }
 
   Future<void> _editName(BuildContext context, AppState state) async {

@@ -69,6 +69,11 @@ class HomeScreen extends StatelessWidget {
               ),
               SeriesRow(title: 'I più popolari', items: Catalog.popular),
               SeriesRow(title: 'Novità', items: Catalog.newest),
+              SeriesRow(
+                title: 'Serie concluse',
+                subtitle: 'Tutti gli episodi già disponibili',
+                items: Catalog.finishedSeries,
+              ),
               SeriesRow(title: 'Doppiati in italiano', items: Catalog.dubbed),
               for (final g in const [
                 'Azione',

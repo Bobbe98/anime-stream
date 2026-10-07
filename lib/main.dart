@@ -8,14 +8,18 @@ import 'screens/calendar_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/my_lists_screen.dart';
 import 'state/app_state.dart';
+import 'state/downloads.dart';
 import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppState(prefs),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AppState(prefs)),
+        ChangeNotifierProvider(create: (_) => DownloadManager(prefs)),
+      ],
       child: const AniWaveApp(),
     ),
   );

@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 
-/// Video demo pubblici (Blender Foundation, licenza Creative Commons),
-/// con la loro durata reale per mostrare progressi coerenti.
-const _videoBase =
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/';
+/// Video demo: cortometraggi open della Blender Foundation (licenza
+/// Creative Commons), ospitati da Internet Archive, con la loro durata reale.
+const _archive = 'https://archive.org/download/';
 const _videos = <(String, Duration)>[
-  ('BigBuckBunny.mp4', Duration(minutes: 9, seconds: 56)),
-  ('ElephantsDream.mp4', Duration(minutes: 10, seconds: 53)),
-  ('Sintel.mp4', Duration(minutes: 14, seconds: 48)),
-  ('TearsOfSteel.mp4', Duration(minutes: 12, seconds: 14)),
+  (
+    'BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4',
+    Duration(minutes: 9, seconds: 56),
+  ),
+  ('ElephantsDream/ed_1024_512kb.mp4', Duration(minutes: 10, seconds: 53)),
+  ('Sintel/sintel-2048-stereo_512kb.mp4', Duration(minutes: 14, seconds: 48)),
+  (
+    'Tears-of-Steel/tears_of_steel_720p.mp4',
+    Duration(minutes: 12, seconds: 14),
+  ),
 ];
 
 const _synopsisTemplates = [
@@ -63,8 +68,9 @@ class Series {
     required this.palette,
     required this.emblem,
     required List<List<String>> seasons,
-    this.simulcastWeekday,
-    this.simulcastTime,
+    this.weekday,
+    this.airTime,
+    this.finished = false,
     this.dubbed = false,
     this.isNew = false,
     this.freeEpisodesPerSeason,
@@ -84,8 +90,12 @@ class Series {
   final IconData emblem;
 
   /// Giorno di uscita settimanale (DateTime.monday..DateTime.sunday).
-  final int? simulcastWeekday;
-  final String? simulcastTime;
+  /// Per le serie concluse è il giorno in cui andavano in onda.
+  final int? weekday;
+  final String? airTime;
+
+  /// `true` se la serie ha trasmesso tutti gli episodi.
+  final bool finished;
   final bool dubbed;
   final bool isNew;
 
@@ -94,7 +104,7 @@ class Series {
   final int? freeEpisodesPerSeason;
   final List<Episode> episodes;
 
-  bool get isSimulcast => simulcastWeekday != null;
+  bool get isSimulcast => !finished && weekday != null;
   List<int> get seasons =>
       episodes.map((e) => e.season).toSet().toList()..sort();
   List<Episode> episodesOf(int season) =>
@@ -122,7 +132,7 @@ class Series {
             synopsis: _synopsisTemplates[hash % _synopsisTemplates.length]
                 .replaceAll('{t}', title),
             duration: video.$2,
-            videoUrl: '$_videoBase${video.$1}',
+            videoUrl: '$_archive${video.$1}',
             premium: free != null && n >= free,
           ),
         );
@@ -151,8 +161,8 @@ class Catalog {
       ageRating: '14+',
       palette: [Color(0xFFF97316), Color(0xFF7C2D12), Color(0xFF1E1B4B)],
       emblem: Icons.flare,
-      simulcastWeekday: DateTime.saturday,
-      simulcastTime: '17:30',
+      weekday: DateTime.saturday,
+      airTime: '17:30',
       dubbed: true,
       isNew: true,
       freeEpisodesPerSeason: 3,
@@ -184,6 +194,9 @@ class Catalog {
       palette: [Color(0xFF06B6D4), Color(0xFF1E3A8A), Color(0xFF020617)],
       emblem: Icons.rocket_launch,
       dubbed: true,
+      weekday: DateTime.thursday,
+      airTime: '23:00',
+      finished: true,
       seasons: [
         [
           'Decollo',
@@ -221,6 +234,9 @@ class Catalog {
       ageRating: 'T',
       palette: [Color(0xFFF9A8D4), Color(0xFFA78BFA), Color(0xFF312E81)],
       emblem: Icons.emoji_food_beverage,
+      weekday: DateTime.tuesday,
+      airTime: '22:30',
+      finished: true,
       seasons: [
         [
           'Benvenute al club',
@@ -248,8 +264,8 @@ class Catalog {
       ageRating: '12+',
       palette: [Color(0xFFE2E8F0), Color(0xFF64748B), Color(0xFF0F172A)],
       emblem: Icons.pets,
-      simulcastWeekday: DateTime.wednesday,
-      simulcastTime: '16:00',
+      weekday: DateTime.wednesday,
+      airTime: '16:00',
       isNew: true,
       freeEpisodesPerSeason: 3,
       seasons: [
@@ -279,6 +295,9 @@ class Catalog {
       palette: [Color(0xFFFACC15), Color(0xFFEA580C), Color(0xFF431407)],
       emblem: Icons.sports_volleyball,
       dubbed: true,
+      weekday: DateTime.saturday,
+      airTime: '18:30',
+      finished: true,
       seasons: [
         [
           'Cinque più uno',
@@ -307,8 +326,8 @@ class Catalog {
       ageRating: 'T',
       palette: [Color(0xFFFB7185), Color(0xFF8B5CF6), Color(0xFF1E1B4B)],
       emblem: Icons.favorite,
-      simulcastWeekday: DateTime.friday,
-      simulcastTime: '18:00',
+      weekday: DateTime.friday,
+      airTime: '18:00',
       isNew: true,
       freeEpisodesPerSeason: 2,
       seasons: [
@@ -336,8 +355,8 @@ class Catalog {
       ageRating: '12+',
       palette: [Color(0xFF94A3B8), Color(0xFF166534), Color(0xFF052E16)],
       emblem: Icons.precision_manufacturing,
-      simulcastWeekday: DateTime.tuesday,
-      simulcastTime: '17:00',
+      weekday: DateTime.tuesday,
+      airTime: '17:00',
       dubbed: true,
       seasons: [
         [
@@ -373,6 +392,9 @@ class Catalog {
       ageRating: '16+',
       palette: [Color(0xFFB91C1C), Color(0xFF292524), Color(0xFF0C0A09)],
       emblem: Icons.search,
+      weekday: DateTime.friday,
+      airTime: '01:00',
+      finished: true,
       seasons: [
         [
           'Dieci secondi',
@@ -401,8 +423,8 @@ class Catalog {
       ageRating: 'T',
       palette: [Color(0xFF34D399), Color(0xFF0EA5E9), Color(0xFF082F49)],
       emblem: Icons.ramen_dining,
-      simulcastWeekday: DateTime.monday,
-      simulcastTime: '19:00',
+      weekday: DateTime.monday,
+      airTime: '19:00',
       isNew: true,
       seasons: [
         [
@@ -429,8 +451,8 @@ class Catalog {
       ageRating: '16+',
       palette: [Color(0xFF22D3EE), Color(0xFFD946EF), Color(0xFF0F0A1E)],
       emblem: Icons.memory,
-      simulcastWeekday: DateTime.thursday,
-      simulcastTime: '21:00',
+      weekday: DateTime.thursday,
+      airTime: '21:00',
       dubbed: true,
       freeEpisodesPerSeason: 3,
       seasons: [
@@ -459,8 +481,8 @@ class Catalog {
       ageRating: '12+',
       palette: [Color(0xFF60A5FA), Color(0xFFF43F5E), Color(0xFF172554)],
       emblem: Icons.auto_awesome,
-      simulcastWeekday: DateTime.sunday,
-      simulcastTime: '15:30',
+      weekday: DateTime.sunday,
+      airTime: '15:30',
       dubbed: true,
       freeEpisodesPerSeason: 3,
       seasons: [
@@ -488,6 +510,9 @@ class Catalog {
       ageRating: 'T',
       palette: [Color(0xFF38BDF8), Color(0xFFFDE68A), Color(0xFF0C4A6E)],
       emblem: Icons.surfing,
+      weekday: DateTime.sunday,
+      airTime: '17:00',
+      finished: true,
       seasons: [
         [
           'La tavola blu',
@@ -533,10 +558,13 @@ class Catalog {
   static List<Series> byGenre(String genre) =>
       popular.where((s) => s.genres.contains(genre)).toList();
 
-  static List<Series> simulcastOn(int weekday) =>
-      all.where((s) => s.simulcastWeekday == weekday).toList()..sort(
-        (a, b) => (a.simulcastTime ?? '').compareTo(b.simulcastTime ?? ''),
-      );
+  static List<Series> get finishedSeries =>
+      popular.where((s) => s.finished).toList();
+
+  /// Serie del giorno: in onda (`finished: false`) o concluse (`true`).
+  static List<Series> onWeekday(int weekday, {required bool finished}) =>
+      all.where((s) => s.weekday == weekday && s.finished == finished).toList()
+        ..sort((a, b) => (a.airTime ?? '').compareTo(b.airTime ?? ''));
 
   static List<Series> similarTo(Series series) => popular
       .where(

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../data/catalog.dart';
 import '../state/app_state.dart';
+import '../state/downloads.dart';
 import '../theme.dart';
 import '../widgets/cards.dart';
 
@@ -12,7 +13,7 @@ class MyListsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
@@ -23,10 +24,13 @@ class MyListsScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'La mia lista'),
               Tab(text: 'Cronologia'),
+              Tab(text: 'Download'),
             ],
           ),
         ),
-        body: const TabBarView(children: [_Watchlist(), _History()]),
+        body: const TabBarView(
+          children: [_Watchlist(), _History(), _Downloads()],
+        ),
       ),
     );
   }
@@ -181,6 +185,159 @@ class _History extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _Downloads extends StatelessWidget {
+  const _Downloads();
+
+  @override
+  Widget build(BuildContext context) {
+    if (!DownloadManager.supported) {
+      return const _Empty(
+        icon: Icons.download_outlined,
+        text: 'I download sono disponibili nell\'app per Android e iOS.',
+      );
+    }
+    final downloads = context.watch<DownloadManager>();
+    final pending = downloads.pending;
+    final done = downloads.completed;
+    if (pending.isEmpty && done.isEmpty) {
+      return const _Empty(
+        icon: Icons.download_outlined,
+        text:
+            'Nessun episodio scaricato.\nTocca l\'icona di download su un '
+            'episodio per guardarlo anche senza connessione.',
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.sd_storage_outlined, color: AppColors.textMuted),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${done.length} episodi · ${formatBytes(downloads.totalBytes)}',
+                style: const TextStyle(color: AppColors.textMuted),
+              ),
+            ),
+          ],
+        ),
+        if (pending.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Text(
+            'In corso',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+          ),
+          for (final item in pending) _DownloadTile(item: item),
+        ],
+        if (done.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Text(
+            'Disponibili offline',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+          ),
+          for (final item in done) _DownloadTile(item: item),
+        ],
+      ],
+    );
+  }
+}
+
+class _DownloadTile extends StatelessWidget {
+  const _DownloadTile({required this.item});
+
+  final DownloadItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = item.episode;
+    if (e == null) return const SizedBox.shrink();
+    final s = Catalog.byId(e.seriesId);
+    final downloads = context.read<DownloadManager>();
+    final String status;
+    switch (item.status) {
+      case DownloadStatus.queued:
+        status = 'In coda';
+      case DownloadStatus.downloading:
+        final p = item.progress;
+        status = p == null
+            ? formatBytes(item.received)
+            : '${(p * 100).round()}% · ${formatBytes(item.received)}'
+                  ' di ${formatBytes(item.total!)}';
+      case DownloadStatus.failed:
+        status = 'Non riuscito: tocca per riprovare';
+      case DownloadStatus.done:
+        status = formatBytes(item.received);
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: InkWell(
+        onTap: switch (item.status) {
+          DownloadStatus.done => () => playEpisode(context, e),
+          DownloadStatus.failed => () => downloads.retry(e.id),
+          _ => null,
+        },
+        child: Row(
+          children: [
+            SizedBox(width: 120, child: EpisodeThumb(episode: e)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    '${e.code} - ${e.title}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  if (item.status == DownloadStatus.downloading)
+                    LinearProgressIndicator(
+                      value: item.progress,
+                      minHeight: 3,
+                      backgroundColor: Colors.white12,
+                      color: AppColors.accent2,
+                    ),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: item.status == DownloadStatus.failed
+                          ? Colors.redAccent
+                          : AppColors.accent2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: item.status == DownloadStatus.done
+                  ? 'Elimina download'
+                  : 'Annulla download',
+              icon: Icon(
+                item.status == DownloadStatus.done
+                    ? Icons.delete_outline
+                    : Icons.close,
+              ),
+              onPressed: () => downloads.delete(e.id),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

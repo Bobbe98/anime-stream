@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../data/catalog.dart';
 import '../state/app_state.dart';
+import '../state/downloads.dart';
 import '../theme.dart';
 import '../widgets/cards.dart';
+import '../widgets/download_button.dart';
 import '../widgets/series_art.dart';
 
 const _weekdays = [
@@ -34,6 +36,33 @@ class _SeriesScreenState extends State<SeriesScreen> {
   void initState() {
     super.initState();
     _season = context.read<AppState>().upNext(widget.series).season;
+  }
+
+  Future<void> _downloadSeason(List<Episode> episodes) async {
+    final state = context.read<AppState>();
+    final downloads = context.read<DownloadManager>();
+    final locked = episodes.where(state.isLocked).length;
+    if (locked > 0 && !state.premium) {
+      await showPremiumSheet(context);
+    }
+    if (!mounted) return;
+    var added = 0;
+    for (final e in episodes) {
+      if (state.isLocked(e) || downloads.itemOf(e.id) != null) continue;
+      downloads.enqueue(e);
+      added++;
+    }
+    final skipped = episodes.where(state.isLocked).length;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          added == 0 && skipped == 0
+              ? 'Tutti gli episodi sono già scaricati o in coda'
+              : 'In download: $added episodi'
+                    '${skipped > 0 ? ' ($skipped Premium esclusi)' : ''}',
+        ),
+      ),
+    );
   }
 
   @override
@@ -94,23 +123,31 @@ class _SeriesScreenState extends State<SeriesScreen> {
                       if (s.dubbed) const Tag('DUB'),
                     ],
                   ),
-                  if (s.isSimulcast) ...[
+                  if (s.weekday != null) ...[
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        const Icon(
-                          Icons.schedule,
+                        Icon(
+                          s.finished ? Icons.check_circle : Icons.schedule,
                           size: 16,
-                          color: AppColors.accent2,
+                          color: s.finished
+                              ? AppColors.textMuted
+                              : AppColors.accent2,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Simulcast: nuovo episodio ogni '
-                            '${_weekdays[s.simulcastWeekday! - 1].toLowerCase()} '
-                            'alle ${s.simulcastTime}',
-                            style: const TextStyle(
-                              color: AppColors.accent2,
+                            s.finished
+                                ? 'Serie conclusa · ${s.episodes.length} episodi · '
+                                      'andava in onda il '
+                                      '${_weekdays[s.weekday! - 1].toLowerCase()}'
+                                : 'Simulcast: nuovo episodio ogni '
+                                      '${_weekdays[s.weekday! - 1].toLowerCase()} '
+                                      'alle ${s.airTime}',
+                            style: TextStyle(
+                              color: s.finished
+                                  ? AppColors.textMuted
+                                  : AppColors.accent2,
                               fontSize: 13,
                             ),
                           ),
@@ -187,6 +224,12 @@ class _SeriesScreenState extends State<SeriesScreen> {
                         ),
                       ),
                       const Spacer(),
+                      if (DownloadManager.supported)
+                        IconButton(
+                          tooltip: 'Scarica la stagione',
+                          icon: const Icon(Icons.download_for_offline_outlined),
+                          onPressed: () => _downloadSeason(episodes),
+                        ),
                       if (s.seasons.length > 1)
                         DropdownButton<int>(
                           value: _season,
@@ -242,7 +285,7 @@ class _EpisodeTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 150, child: EpisodeThumb(episode: episode)),
+            SizedBox(width: 128, child: EpisodeThumb(episode: episode)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -267,10 +310,16 @@ class _EpisodeTile extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              tooltip: 'Opzioni',
-              icon: const Icon(Icons.more_vert),
-              onPressed: () => _showOptions(context, state),
+            Column(
+              children: [
+                DownloadButton(episode: episode),
+                IconButton(
+                  tooltip: 'Opzioni',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.more_vert),
+                  onPressed: () => _showOptions(context, state),
+                ),
+              ],
             ),
           ],
         ),
@@ -307,6 +356,35 @@ class _EpisodeTile extends StatelessWidget {
                 Navigator.pop(sheet);
               },
             ),
+            if (DownloadManager.supported)
+              Builder(
+                builder: (_) {
+                  final downloads = context.read<DownloadManager>();
+                  final item = downloads.itemOf(episode.id);
+                  if (item == null || item.status == DownloadStatus.failed) {
+                    return ListTile(
+                      leading: const Icon(Icons.download_outlined),
+                      title: const Text('Scarica per la visione offline'),
+                      onTap: () {
+                        Navigator.pop(sheet);
+                        downloadEpisode(context, episode);
+                      },
+                    );
+                  }
+                  return ListTile(
+                    leading: const Icon(Icons.delete_outline),
+                    title: Text(
+                      item.status == DownloadStatus.done
+                          ? 'Elimina download'
+                          : 'Annulla download',
+                    ),
+                    onTap: () {
+                      Navigator.pop(sheet);
+                      downloads.delete(episode.id);
+                    },
+                  );
+                },
+              ),
           ],
         ),
       ),
