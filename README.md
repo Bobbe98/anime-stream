@@ -32,6 +32,14 @@ flutter run -d chrome  # Web
 flutter test
 ```
 
+## Compilazione automatica
+
+A ogni push, GitHub Actions (`.github/workflows/build.yml`) analizza il codice, esegue i test e compila l'APK Android.
+L'APK finisce nella pagina **Releases** del repository, pronto da scaricare e installare sul telefono.
+Puoi anche avviarla a mano: tab **Actions** → **Build APK** → **Run workflow**.
+
+In alternativa c'è `codemagic.yaml`, che ti manda l'APK per email.
+
 ## Struttura
 
 ```
