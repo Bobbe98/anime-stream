@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../state/downloads.dart';
 import '../theme.dart';
 import '../widgets/cards.dart';
+import '../widgets/series_art.dart';
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key, required this.episode});
@@ -259,6 +260,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       backgroundColor: Colors.black,
       body: _error != null
           ? _ErrorView(
+              series: series,
+              episode: _episode,
               onRetry: () {
                 _controller.dispose();
                 _init();
@@ -276,16 +279,33 @@ class _PlayerScreenState extends State<PlayerScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Center(
-                    child: ValueListenableBuilder(
-                      valueListenable: _controller,
-                      builder: (_, v, _) => v.isInitialized
-                          ? AspectRatio(
+                  ValueListenableBuilder(
+                    valueListenable: _controller,
+                    builder: (_, v, _) => v.isInitialized
+                        ? Center(
+                            child: AspectRatio(
                               aspectRatio: v.aspectRatio,
                               child: VideoPlayer(_controller),
-                            )
-                          : const CircularProgressIndicator(),
-                    ),
+                            ),
+                          )
+                        : _LoadingCover(series: series, episode: _episode),
+                  ),
+                  // Con il video in pausa mostriamo cosa si sta guardando.
+                  ValueListenableBuilder(
+                    valueListenable: _controller,
+                    builder: (_, v, _) {
+                      final paused = v.isInitialized && !v.isPlaying && !_ended;
+                      return IgnorePointer(
+                        child: AnimatedOpacity(
+                          opacity: paused ? 1 : 0,
+                          duration: const Duration(milliseconds: 250),
+                          child: _PausedCover(
+                            series: series,
+                            episode: _episode,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   ValueListenableBuilder(
                     valueListenable: _controller,
@@ -293,13 +313,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ? const Center(child: CircularProgressIndicator())
                         : const SizedBox.shrink(),
                   ),
+                  // I comandi compaiono solo quando il video è pronto; prima
+                  // si vede la copertina di caricamento.
                   AnimatedOpacity(
-                    opacity: _showControls ? 1 : 0,
+                    opacity: _showControls && _controller.value.isInitialized
+                        ? 1
+                        : 0,
                     duration: const Duration(milliseconds: 200),
                     child: IgnorePointer(
-                      ignoring: !_showControls,
+                      ignoring:
+                          !_showControls || !_controller.value.isInitialized,
                       child: _Controls(
                         controller: _controller,
+                        series: series,
                         title: series.title,
                         subtitle:
                             '${_offline ? 'Offline · ' : ''}${_episode.code} - ${_episode.title}',
@@ -378,6 +404,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
 class _Controls extends StatelessWidget {
   const _Controls({
+    required this.series,
     required this.controller,
     required this.title,
     required this.subtitle,
@@ -392,6 +419,7 @@ class _Controls extends StatelessWidget {
     required this.onSubtitles,
   });
 
+  final Series series;
   final VideoPlayerController controller;
   final String title;
   final String subtitle;
@@ -436,6 +464,15 @@ class _Controls extends StatelessWidget {
                       onPressed: onBack,
                       icon: const Icon(Icons.arrow_back, color: Colors.white),
                     ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: SizedBox(
+                        width: 28,
+                        height: 42,
+                        child: SeriesArt(series: series, showTitle: false),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,41 +599,61 @@ class _Controls extends StatelessWidget {
 }
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.onRetry});
+  const _ErrorView({
+    required this.series,
+    required this.episode,
+    required this.onRetry,
+  });
 
+  final Series series;
+  final Episode episode;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Stack(
-        children: [
-          IconButton(
-            tooltip: 'Indietro',
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-          ),
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.wifi_off,
-                  size: 48,
-                  color: AppColors.textMuted,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SeriesArt(series: series, showTitle: false, wide: true),
+        const ColoredBox(color: Colors.black87),
+        SafeArea(
+          child: Stack(
+            children: [
+              IconButton(
+                tooltip: 'Indietro',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+              ),
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _CoverInfo(
+                        series: series,
+                        episode: episode,
+                        status: 'Video non disponibile',
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Impossibile caricare il video. Controlla la connessione.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: onRetry,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Riprova'),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Impossibile caricare il video.\nControlla la connessione.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                FilledButton(onPressed: onRetry, child: const Text('Riprova')),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -629,6 +686,175 @@ class _SubtitleText extends StatelessWidget {
           fontSize: 18 * scale,
           fontWeight: FontWeight.w600,
           height: 1.3,
+        ),
+      ),
+    );
+  }
+}
+
+/// Copertina con titolo ed episodio, usata mentre il video carica e in pausa.
+class _CoverInfo extends StatelessWidget {
+  const _CoverInfo({
+    required this.series,
+    required this.episode,
+    required this.status,
+    this.loading = false,
+  });
+
+  final Series series;
+  final Episode episode;
+  final String status;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 96,
+            height: 144,
+            child: SeriesArt(series: series),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (loading) ...[
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(
+                    status.toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.accent2,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                series.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${episode.code} - ${episode.title}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                episode.synopsis,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Schermata di attesa: sfondo della serie e scheda dell'episodio.
+class _LoadingCover extends StatelessWidget {
+  const _LoadingCover({required this.series, required this.episode});
+
+  final Series series;
+  final Episode episode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SeriesArt(series: series, showTitle: false, wide: true),
+        const ColoredBox(color: Colors.black54),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: IconButton(
+              tooltip: 'Indietro',
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 48),
+              child: _CoverInfo(
+                series: series,
+                episode: episode,
+                status: 'Caricamento',
+                loading: true,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Scheda mostrata a sinistra quando il video è in pausa.
+class _PausedCover extends StatelessWidget {
+  const _PausedCover({required this.series, required this.episode});
+
+  final Series series;
+  final Episode episode;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.black87, Colors.transparent],
+          stops: [0.35, 0.8],
+        ),
+      ),
+      child: SafeArea(
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 48),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: _CoverInfo(
+                series: series,
+                episode: episode,
+                status: 'In pausa',
+              ),
+            ),
+          ),
         ),
       ),
     );
