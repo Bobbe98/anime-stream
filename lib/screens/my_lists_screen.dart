@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/anilist.dart';
 import '../data/catalog.dart';
 import '../state/app_state.dart';
 import '../state/downloads.dart';
 import '../theme.dart';
+import '../widgets/anime_cover.dart';
 import '../widgets/cards.dart';
+import 'anime_screen.dart';
 
 class MyListsScreen extends StatelessWidget {
   const MyListsScreen({super.key});
@@ -67,25 +70,63 @@ class _Empty extends StatelessWidget {
 class _Watchlist extends StatelessWidget {
   const _Watchlist();
 
+  static const _grid = SliverGridDelegateWithMaxCrossAxisExtent(
+    maxCrossAxisExtent: 160,
+    mainAxisSpacing: 16,
+    crossAxisSpacing: 12,
+    childAspectRatio: 0.5,
+  );
+
   @override
   Widget build(BuildContext context) {
-    final list = context.watch<AppState>().watchlist;
-    if (list.isEmpty) {
+    final state = context.watch<AppState>();
+    final list = state.watchlist;
+    final real = state.realList;
+    if (list.isEmpty && real.isEmpty) {
       return const _Empty(
         icon: Icons.bookmark_border,
-        text: 'La tua lista è vuota.\nTocca il segnalibro su una serie per salvarla qui.',
+        text:
+            'La tua lista è vuota.\nTocca il segnalibro su una serie o su un '
+            'anime per salvarlo qui.',
       );
     }
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 160,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.5,
-      ),
-      itemCount: list.length,
-      itemBuilder: (_, i) => PosterCard(series: list[i], width: null),
+    return CustomScrollView(
+      slivers: [
+        if (real.isNotEmpty) ...[
+          const SliverToBoxAdapter(child: SectionHeader('Anime salvati')),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverGrid.builder(
+              gridDelegate: _grid,
+              itemCount: real.length,
+              itemBuilder: (context, i) {
+                final saved = real[i];
+                final summary = AnimeSummary(
+                  id: saved.id,
+                  title: saved.title,
+                  cover: saved.cover,
+                  coverLarge: saved.cover,
+                );
+                return AnimeCard(
+                  anime: summary,
+                  onTap: () => openAnime(context, summary),
+                );
+              },
+            ),
+          ),
+        ],
+        if (list.isNotEmpty) ...[
+          const SliverToBoxAdapter(child: SectionHeader('Serie AniWave')),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            sliver: SliverGrid.builder(
+              gridDelegate: _grid,
+              itemCount: list.length,
+              itemBuilder: (_, i) => PosterCard(series: list[i], width: null),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

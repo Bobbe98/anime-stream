@@ -8,6 +8,8 @@ App Flutter di streaming anime ispirata all'esperienza di Crunchyroll, con **nom
 
 ## Funzioni
 
+- **Anime reali** (tab *Anime*, dati da [AniList](https://anilist.co)): il catalogo vero di tutti gli anime con copertine, trama, studio, voto, episodi e conto alla rovescia del prossimo episodio. Ci sono le uscite dei prossimi 7 giorni giorno per giorno, poi *Di tendenza*, *Stagione corrente*, *In corso*, *In arrivo*, *Concluse* e la ricerca su tutto il catalogo. Per ogni anime c'è **Dove guardarlo**, con i link alle piattaforme ufficiali (Crunchyroll, Netflix, YouTube…), il trailer e gli episodi ufficiali. Gli anime si possono salvare nella propria lista.
+  Gli episodi delle serie vere sono protetti da copyright, quindi l'app non li trasmette: rimanda a chi ha la licenza.
 - **Home**: carosello in evidenza a scorrimento automatico, "Continua a guardare", simulcast, popolari, novità, doppiati e righe per genere.
 - **Scheda serie**: info, valutazione, generi, stagioni, lista episodi con avanzamento, "Segna come visto" e "Più come questo".
 - **Player video**: riprende da dove avevi lasciato, ±10 s (anche con doppio tocco), barra di avanzamento, velocità da 0.75x a 2x, "Salta intro", passaggio automatico all'episodio successivo con conto alla rovescia.

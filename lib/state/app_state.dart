@@ -19,6 +19,9 @@ class AppState extends ChangeNotifier {
   final SharedPreferences _prefs;
 
   final Set<String> _watchlist = {};
+
+  /// Anime reali salvati (id AniList -> titolo e copertina).
+  final Map<int, SavedAnime> _realList = {};
   final Map<String, int> _progress = {};
   final List<String> _history = [];
   bool _premium = false;
@@ -44,6 +47,17 @@ class AppState extends ChangeNotifier {
       _history.map(Catalog.episodeById).whereType<Episode>().toList();
 
   bool inWatchlist(String seriesId) => _watchlist.contains(seriesId);
+
+  List<SavedAnime> get realList => _realList.values.toList().reversed.toList();
+
+  bool inRealList(int id) => _realList.containsKey(id);
+
+  void toggleRealList(int id, String title, String? cover) {
+    if (_realList.remove(id) == null) {
+      _realList[id] = SavedAnime(id, title, cover);
+    }
+    _commit();
+  }
 
   void toggleWatchlist(String seriesId) {
     if (!_watchlist.remove(seriesId)) _watchlist.add(seriesId);
@@ -189,6 +203,10 @@ class AppState extends ChangeNotifier {
       _key,
       jsonEncode({
         'watchlist': _watchlist.toList(),
+        'realList': [
+          for (final a in _realList.values)
+            {'id': a.id, 'title': a.title, 'cover': a.cover},
+        ],
         'progress': _progress,
         'history': _history,
         'premium': _premium,
@@ -207,6 +225,14 @@ class AppState extends ChangeNotifier {
     try {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       _watchlist.addAll((data['watchlist'] as List? ?? []).cast<String>());
+      for (final a in (data['realList'] as List? ?? [])) {
+        final m = a as Map<String, dynamic>;
+        _realList[m['id'] as int] = SavedAnime(
+          m['id'] as int,
+          m['title'] as String,
+          m['cover'] as String?,
+        );
+      }
       _progress.addAll(
         (data['progress'] as Map? ?? {}).map(
           (k, v) => MapEntry(k as String, (v as num).toInt()),
@@ -223,4 +249,11 @@ class AppState extends ChangeNotifier {
       debugPrint('AniWave: stato salvato non valido, lo ignoro ($e)');
     }
   }
+}
+
+class SavedAnime {
+  const SavedAnime(this.id, this.title, this.cover);
+  final int id;
+  final String title;
+  final String? cover;
 }

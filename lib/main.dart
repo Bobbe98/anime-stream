@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'data/anilist.dart';
 import 'screens/account_screen.dart';
-import 'screens/browse_screen.dart';
+import 'screens/anime_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/my_lists_screen.dart';
@@ -17,6 +18,7 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider(create: (_) => AniListClient(), dispose: (_, c) => c.close()),
         ChangeNotifierProvider(create: (_) => AppState(prefs)),
         ChangeNotifierProvider(create: (_) => DownloadManager(prefs)),
       ],
@@ -51,8 +53,8 @@ class _MainShellState extends State<MainShell> {
 
   static const _pages = [
     HomeScreen(),
+    AnimeScreen(),
     CalendarScreen(),
-    BrowseScreen(),
     MyListsScreen(),
     AccountScreen(),
   ];
@@ -72,14 +74,14 @@ class _MainShellState extends State<MainShell> {
             label: 'Home',
           ),
           const NavigationDestination(
+            icon: Icon(Icons.live_tv_outlined),
+            selectedIcon: Icon(Icons.live_tv),
+            label: 'Anime',
+          ),
+          const NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),
             selectedIcon: Icon(Icons.calendar_month),
             label: 'Calendario',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Sfoglia',
           ),
           const NavigationDestination(
             icon: Icon(Icons.bookmarks_outlined),

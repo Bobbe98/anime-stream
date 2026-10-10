@@ -1,3 +1,4 @@
+import 'package:aniwave/data/anilist.dart';
 import 'package:aniwave/main.dart';
 import 'package:aniwave/state/app_state.dart';
 import 'package:aniwave/state/downloads.dart';
@@ -5,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'support/fake_anilist.dart';
 
 Future<void> _pumpApp(WidgetTester tester, Size logicalSize) async {
   tester.view.physicalSize = logicalSize * 2.5;
@@ -16,6 +19,7 @@ Future<void> _pumpApp(WidgetTester tester, Size logicalSize) async {
   await tester.pumpWidget(
     MultiProvider(
       providers: [
+        Provider<AniListClient>(create: (_) => fakeAniList()),
         ChangeNotifierProvider(create: (_) => AppState(prefs)),
         ChangeNotifierProvider(create: (_) => DownloadManager(prefs)),
       ],
@@ -52,7 +56,9 @@ void main() {
     expect(find.textContaining('Nessun episodio scaricato'), findsOneWidget);
 
     // Ricerca e filtro "Concluse" dalla tab Sfoglia.
-    await tester.tap(find.text('Sfoglia'));
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Cerca'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'volpe');
     await tester.pump();
@@ -61,6 +67,27 @@ void main() {
     await tester.tap(find.text('Concluse'));
     await tester.pump();
     expect(find.text('5 titoli'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // Anime reali (AniList finto): uscite, scheda e "Dove guardarlo".
+    await tester.tap(find.text('Anime'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Oggi'), findsOneWidget);
+    expect(find.text('Test Blade'), findsWidgets);
+    await tester.tap(find.text('Test Blade').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Dove guardarlo'), findsOneWidget);
+    expect(find.text('Crunchyroll'), findsOneWidget);
+    expect(find.text('Guarda il trailer'), findsOneWidget);
+    await tester.tap(find.byTooltip('Aggiungi alla lista'));
+    await tester.pump();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Di tendenza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Test Garden'), findsWidgets);
 
     // Calendario: passa da "In corso" a "Concluse" e sceglie il sabato.
     await tester.tap(find.text('Calendario'));
@@ -89,7 +116,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
-    for (final tab in ['Calendario', 'Sfoglia', 'Liste', 'Account']) {
+    for (final tab in ['Anime', 'Calendario', 'Liste', 'Account']) {
       await tester.tap(find.text(tab));
       await tester.pumpAndSettle();
     }
